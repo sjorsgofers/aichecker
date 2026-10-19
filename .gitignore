@@ -1,2 +1,5 @@
-config.json
+# Nooit geheimen in deze repo: alle JSON (config.json, .laatste-stand.json) blijft lokaal.
+*.json
+.laatste-stand.json
 *.log
+.env*
