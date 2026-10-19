@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI-tegoed</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#000000">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="AI-tegoed">
+<style>
+  :root {
+    --bg: #000000; --pane: #000000; --bar: #050a06; --line: #12361c;
+    --fg: #39ff7a; --fg-dim: #1fa851; --fg-mute: #3f6b4b; --white: #d6ffe2;
+    --cyan: #3ad8ff; --yellow: #ffd23f; --orange: #ff9a3c; --red: #ff4d4d;
+    --glow: 0 0 3px rgba(57, 255, 122, .25);
+  }
+  * { box-sizing: border-box; }
+  html { font-size: 14px; }
+  html, body { margin: 0; background: var(--bg); }
+  html.fits, html.fits body { height: 100%; overflow: hidden; }
+  body {
+    color: var(--fg);
+    font: 1rem/1.5 "Cascadia Mono", "Cascadia Code", Consolas, "Lucida Console", monospace;
+    text-shadow: var(--glow);
+    min-height: 100vh;
+  }
+
+  .titlebar {
+    display: flex; align-items: center; gap: .7rem; padding: 0 0 0 .85rem; height: 2.4rem;
+    background: #000000; border-bottom: 1px solid var(--line); color: var(--white); font-size: .9rem; text-shadow: none;
+    position: sticky; top: 0; z-index: 5;
+  }
+  .tab { display: flex; align-items: center; gap: .6rem; padding: 0 1rem; height: 100%; background: var(--bg); border-right: 1px solid var(--line); border-left: 1px solid var(--line); }
+  .tab .ico { color: var(--cyan); font-weight: 700; }
+  .titlebar .sp { flex: 1; }
+  .newtab { color: #8aa79a; padding: 0 6px; }
+  .winbtn { width: 3.3rem; height: 100%; display: grid; place-items: center; color: #8aa79a; }
+  .winbtn.x:hover { background: #c42b1c; color: #fff; }
+
+  .screen { padding: .8rem 1rem .6rem; }
+  .banner { color: var(--fg); white-space: pre; font-size: 12px; line-height: 1.15; margin: 4px 0 10px; overflow: hidden; }
+  .muted { color: var(--fg-mute); }
+  .dim { color: var(--fg-dim); }
+  .w { color: var(--white); }
+  .c { color: var(--cyan); }
+  .y { color: var(--yellow); text-shadow: 0 0 6px rgba(255,210,63,.4); }
+  .o { color: var(--orange); text-shadow: 0 0 6px rgba(255,154,60,.4); }
+  .r { color: var(--red); text-shadow: 0 0 6px rgba(255,77,77,.45); }
+
+  .ps { color: var(--white); }
+  .cm { color: var(--yellow); text-shadow: none; }
+  .pa { color: var(--fg-mute); text-shadow: none; }
+  .st { color: var(--cyan); text-shadow: none; }
+
+  .grid { column-count: 1; column-gap: .9rem; }
+  .pane { border: 1px solid var(--line); background: var(--pane); min-width: 0; break-inside: avoid; margin: 0 0 .9rem; display: block; }
+  .pane-h { display: flex; justify-content: space-between; gap: .8rem; padding: .35rem .8rem; border-bottom: 1px solid var(--line); background: var(--bar); }
+  .pane-b { padding: .6rem .8rem .7rem; }
+  .ln { white-space: pre-wrap; word-break: break-word; }
+  .kv { display: grid; grid-template-columns: 22ch 1fr; column-gap: 1ch; }
+  .kv .k { color: var(--fg-dim); }
+  .kv .k::after { content: " :"; color: var(--fg-mute); }
+  .kv .v { color: var(--white); text-shadow: none; }
+  .barrow { display: grid; grid-template-columns: 22ch auto 5ch 1fr; column-gap: 1ch; align-items: baseline; }
+  .barrow .k { color: var(--fg-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar { letter-spacing: -0.5px; }
+  .bar .e { color: #143a20; text-shadow: none; }
+  .pct { text-align: right; }
+  .sub { color: var(--fg-mute); text-shadow: none; }
+  .gap { height: .5rem; }
+  .err { color: var(--red); }
+  .tag { font-weight: 700; }
+  a { color: var(--cyan); }
+
+  .status { margin-top: .2rem; padding-top: .4rem; border-top: 1px dashed var(--line); display: flex; flex-wrap: wrap; gap: 6px 22px; color: var(--fg-dim); }
+  .status button {
+    font: inherit; color: var(--bg); background: var(--fg); border: 0; padding: 0 8px; cursor: pointer; text-shadow: none;
+  }
+  .status button:hover { background: var(--white); }
+  .prompt { margin-top: .3rem; }
+  .cursor { display: inline-block; width: .6em; background: var(--fg); animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  @keyframes boot { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .cursor { animation: none; } }
+  /* Als geïnstalleerde app tekent Windows zelf de titelbalk; dan de nagemaakte balk verbergen. */
+  @media (display-mode: standalone) { .titlebar { display: none; } }
+  @media (max-width: 640px) {
+    .screen { padding: .7rem .7rem .6rem; }
+    .kv { grid-template-columns: 1fr; }
+    .barrow { grid-template-columns: max-content 5ch; justify-content: start; row-gap: 0; }
+    .barrow .k { grid-column: 1 / -1; }
+    .barrow > span:last-child { grid-column: 1 / -1; }
+    .barrow > span:last-child:empty { display: none; }
+    .banner { font-size: 9px; line-height: 1.1; }
+    .tab span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 52vw; }
+  }
+</style>
+</head>
+<body>
+<div class="titlebar">
+  <div class="tab"><span class="ico">&gt;_</span><span class="muted">✕</span></div>
+  <span class="newtab">+</span><span class="newtab">⌄</span>
+  <span class="sp"></span>
+  <span class="winbtn">─</span><span class="winbtn">☐</span><span class="winbtn x">✕</span>
+</div>
+
+<div class="screen">
+
+<main class="grid" id="cards"></main>
+
+<div class="status">
+  <span id="meta">[*] scan wordt gestart...</span>
+  <span id="online"></span>
+  <span><button id="refresh" title="Nu opnieuw ophalen">F5 · ververs</button></span>
+</div>
+<div class="ln prompt"><span class="cursor">&nbsp;</span></div>
+</div>
+
+<script>
+const $cards = document.getElementById('cards');
+const $meta = document.getElementById('meta');
+const $online = document.getElementById('online');
+let timer = null;
+
+// ---------- helpers ----------
+function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function sevClass(p) { if (p == null) return ''; if (p >= 95) return 'r'; if (p >= 80) return 'o'; if (p >= 60) return 'y'; return ''; }
+function fmtAt(iso) { return iso ? new Date(iso).toLocaleString('nl-NL', { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : ''; }
+function fmtDur(s) { if (s == null) return ''; const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60); return h ? `${h}u${m ? m + 'm' : ''}` : `${m}m`; }
+function countdown(iso) {
+  const ms = new Date(iso) - Date.now();
+  if (isNaN(ms)) return '';
+  if (ms <= 0) return '00:00:00';
+  const t = Math.floor(ms / 1000), d = Math.floor(t / 86400), h = Math.floor(t % 86400 / 3600), m = Math.floor(t % 3600 / 60), s = t % 60;
+  const hms = [h, m, s].map(x => String(x).padStart(2, '0')).join(':');
+  return d ? `${d}d ${hms}` : hms;
+}
+function cd(iso) { return iso ? `<span class="c">T-<span class="cd" data-t="${esc(iso)}">${countdown(iso)}</span></span> <span class="sub">(${esc(fmtAt(iso))})</span>` : ''; }
+function money(cents, cur) { if (cents == null) return '–'; const sym = cur === 'EUR' ? '€' : '$'; return `${sym} ${(cents / 100).toFixed(2)}`; }
+function fmtBytes(b) { if (b == null) return '–'; const u = ['B','KB','MB','GB','TB']; let i = 0, v = b; while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; } return (v >= 100 || i === 0 ? Math.round(v) : v.toFixed(1)) + ' ' + u[i]; }
+function fmtNum(n) { return n == null ? '–' : Number(n).toLocaleString('nl-NL'); }
+function fmtTokens(n) { if (n == null) return '–'; if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M'; if (n >= 1e3) return Math.round(n / 1e3) + 'k'; return String(n); }
+function shortModel(m) { return String(m).replace(/^claude-/, '').replace(/-(\d+)-(\d+)$/, ' $1.$2'); }
+
+const BAR_W = window.innerWidth < 640 ? 20 : 26;
+function bar(p) {
+  const v = Math.max(0, Math.min(100, p ?? 0));
+  const n = Math.round(v / 100 * BAR_W);
+  return `<span class="bar"><span class="muted">[</span><span class="${sevClass(p)}">${'█'.repeat(n)}</span><span class="e">${'░'.repeat(BAR_W - n)}</span><span class="muted">]</span></span>`;
+}
+function barRow(label, p, right) {
+  const pctTxt = p == null ? '  –' : String(Math.round(p)).padStart(3, ' ') + '%';
+  return `<div class="barrow ln"><span class="k" title="${esc(label)}">${esc(label)}</span>${bar(p)}<span class="pct ${sevClass(p)}">${pctTxt}</span><span>${right || ''}</span></div>`;
+}
+function kv(k, v, cls = '') { return `<div class="kv ln"><span class="k">${esc(k)}</span><span class="v ${cls}">${v}</span></div>`; }
+function gap() { return '<div class="gap"></div>'; }
+function cmd(verb, args) { return `<span class="ps">PS&gt;</span> <span class="cm">${esc(verb)}</span> ${args.map(([p, v]) => `<span class="pa">${esc(p)}</span> <span class="st">${esc(v)}</span>`).join(' ')}`; }
+function tag(status, worst) {
+  if (status === 'unconfigured') return '<span class="tag muted">[ -- ]</span>';
+  if (status !== 'ok') return '<span class="tag r">[FAIL]</span>';
+  if (worst >= 95) return '<span class="tag r">[CRIT]</span>';
+  if (worst >= 80) return '<span class="tag o">[WARN]</span>';
+  return '<span class="tag">[ OK ]</span>';
+}
+function pane(command, status, worst, body) {
+  return `<section class="pane"><div class="pane-h"><span>${command}</span>${tag(status, worst)}</div><div class="pane-b">${body}</div></section>`;
+}
+function psError(verb, message, category) {
+  return `<div class="ln err">${esc(verb)} : ${esc(message)}</div><div class="ln err">    + CategoryInfo          : ${esc(category)}</div>`;
+}
+function notLinked(verb, message) {
+  return `<div class="ln y">WARNING: ${esc(message)}</div><div class="ln sub">Zie LEESMIJ.md voor de koppelstappen.</div>`;
+}
+function simple(verb, args, x, cat) {
+  if (x.status === 'unconfigured') return pane(cmd(verb, args), 'unconfigured', 0, notLinked(verb, x.message));
+  return pane(cmd(verb, args), 'error', 0, psError(verb, x.message || 'Onbekende fout', cat || 'ConnectionError'));
+}
+
+// ---------- panes ----------
+function renderClaude(c) {
+  const verb = 'Get-Usage', args = [['-Service', 'Claude']];
+  if (c.status !== 'ok') return simple(verb, args, c, 'AuthenticationError');
+  let html = kv('Plan', esc(c.plan ? c.plan.charAt(0).toUpperCase() + c.plan.slice(1) : 'onbekend')) + gap();
+  if (c.stale) html += `<div class="ln y">WARNING: ${esc(c.staleReason || 'tijdelijk geen verse cijfers')} Stand van ${esc(new Date(c.staleAt).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' }))}.</div>` + gap();
+  let worst = 0;
+  for (const w of c.windows) {
+    worst = Math.max(worst, w.percentUsed ?? 0);
+    html += barRow(w.label, w.percentUsed, cd(w.resetsAt));
+  }
+  if (!c.windows.length) html += '<div class="ln y">WARNING: geen limietvensters in het antwoord.</div>';
+  const e = c.extraUsage;
+  if (e && e.enabled !== false) {
+    const cur = e.currency === 'EUR' ? '€' : (e.currency || '');
+    html += barRow('Extra gebruik (maand)', e.percentUsed, e.spent != null ? `<span class="w">${cur} ${esc(e.spent)}</span> <span class="sub">/ ${cur} ${esc(e.monthlyLimit)}</span>` : '');
+  }
+  if (c.credit) {
+    const sym = c.credit.currency === 'EUR' ? '€' : c.credit.currency === 'USD' ? '$' : c.credit.currency;
+    html += kv('Gebruikstegoed', `<span class="w">${sym} ${(c.credit.minor / 10 ** c.credit.exponent).toFixed(2)}</span>`);
+  }
+  if (c.breakdown && c.breakdown.length) {
+    html += gap() + kv('Verdeling 7 dagen', c.breakdown.map(b => `${esc(b.label)} <span class="dim">${b.percent}%</span>`).join(' <span class="muted">·</span> '));
+  }
+  return pane(cmd(verb, args), 'ok', worst, html);
+}
+
+function renderAnthropicApi(a) {
+  const verb = 'Get-ApiCost', args = [['-Org', 'Anthropic'], ['-App', 'BuzzFlow']];
+  if (!a) return '';
+  if (a.status !== 'ok') return simple(verb, args, a, 'AuthenticationError');
+  let html = '';
+  if (a.mode === 'console') {
+    html += kv('API-tegoed', `<span class="w">${money(a.balanceCents, a.currency)}</span>`);
+    html += kv('  gekocht', money(a.paidCents, a.currency));
+    let worst = 0;
+    for (const p of a.promos || []) {
+      const usedPct = p.grantedCents ? (1 - p.remainingCents / p.grantedCents) * 100 : null;
+      const days = p.expiresAt ? (new Date(p.expiresAt) - Date.now()) / 86400000 : null;
+      if (days != null && days < 7 && p.remainingCents > 0) worst = Math.max(worst, days < 2 ? 95 : 80);
+      html += barRow('  promotegoed', usedPct, `<span class="w">${money(p.remainingCents, a.currency)}</span> <span class="sub">/ ${money(p.grantedCents, a.currency)}</span>`);
+      if (p.expiresAt) html += kv('  verloopt', `${cd(p.expiresAt)}${days != null && days < 7 && p.remainingCents > 0 ? ' <span class="o">gebruik het op tijd</span>' : ''}`);
+    }
+    html += kv('Automatisch opwaarderen', a.autoReload ? 'True' : 'False');
+    return pane(cmd(verb, args), 'ok', worst, html);
+  }
+  if (a.budgetCents) html += barRow('Budget deze maand', a.percentUsed, `<span class="w">${money(a.monthCents)}</span> <span class="sub">/ ${money(a.budgetCents)}</span>`);
+  else html += kv('Kosten deze maand', `<span class="w">${money(a.monthCents)}</span>`);
+  html += kv('Vandaag', money(a.todayCents));
+  for (const m of a.perModel || []) html += kv('  ' + shortModel(m.model), money(m.cents));
+  if (a.tokens7d) {
+    const t = a.tokens7d;
+    html += gap() + kv('Tokens 7 dagen', `in ${fmtTokens(t.input)} <span class="muted">·</span> cache ${fmtTokens(t.cacheRead)} <span class="muted">·</span> uit ${fmtTokens(t.output)}`);
+  }
+  html += '<div class="ln sub"># resterend tegoed: alleen zichtbaar in console.anthropic.com → Billing</div>';
+  return pane(cmd(verb, args), 'ok', a.percentUsed ?? 0, html);
+}
+
+function renderGrok(g) {
+  const verb = 'Get-Usage', args = [['-Service', 'Grok']];
+  if (g.status !== 'ok') return simple(verb, args, g, 'AuthenticationError');
+  let html = kv('Plan', 'SuperGrok') + gap();
+  let worst = 0;
+  const w = g.weekly;
+  if (w) {
+    worst = w.percentUsed ?? 0;
+    html += barRow(w.periodType === 'maand' ? 'Maandlimiet' : 'Weeklimiet', w.percentUsed, cd(w.resetsAt));
+    for (const p of w.products || []) html += barRow('  ' + p.label, p.percentUsed, '');
+    html += gap() + kv('Extra credits', money(w.prepaidCents));
+    if (w.onDemandCapCents) html += kv('Extra gebruik', `${money(w.onDemandUsedCents)} <span class="sub">/ ${money(w.onDemandCapCents)}</span>`);
+  }
+  for (const l of g.rateLimits || []) {
+    worst = Math.max(worst, l.percentUsed ?? 0);
+    html += barRow(`Per ${fmtDur(l.windowSeconds)} (${l.label})`, l.percentUsed, l.total != null ? `<span class="w">${l.remaining}</span><span class="sub">/${l.total} vragen over</span>` : '');
+  }
+  if (g.message) html += `<div class="ln y">WARNING: ${esc(g.message)}</div>`;
+  return pane(cmd(verb, args), 'ok', worst, html);
+}
+
+function renderGrokBot(b) {
+  const verb = 'Get-Usage', args = [['-Service', 'GrokBot']];
+  if (b.status !== 'ok') return simple(verb, args, b, 'AuthenticationError');
+  let html = kv('Plan', esc((b.planLabel || 'Grok Bot') + (b.trial ? ' (proef)' : ''))) + gap();
+  html += barRow('Weeklimiet', b.percentUsed, cd(b.resetsAt));
+  html += gap() + kv('Nog tegoed', b.hasAvailableUsage ? 'True' : '<span class="r">False</span> <span class="sub">(op tot de reset)</span>');
+  if (b.onDemandEligible) html += kv('Bijbetalen na limiet', b.onDemandEnabled ? 'True' : 'False');
+  return pane(cmd(verb, args), 'ok', b.percentUsed ?? 0, html);
+}
+
+function renderSupabase(s) {
+  const verb = 'Get-DbUsage', args = [['-Project', 'BuzzFlow']];
+  if (!s) return '';
+  if (s.status !== 'ok') return simple(verb, args, s, 'AuthenticationError');
+  let html = kv('Project', `${esc(s.name || '?')} <span class="sub">(${esc(s.plan || 'plan onbekend')})</span>`) + gap();
+  let worst = 0;
+  for (const m of s.metrics || []) {
+    worst = Math.max(worst, m.percentUsed ?? 0);
+    const f = m.unit === 'bytes' ? fmtBytes : fmtNum;
+    html += barRow(m.label, m.percentUsed, `<span class="w">${f(m.used)}</span> <span class="sub">/ ${f(m.limit)}</span>`);
+  }
+  if (s.apiRequests24h) {
+    const a = s.apiRequests24h;
+    html += gap() + kv('API-verzoeken 24u', `rest ${fmtNum(a.rest)} <span class="muted">·</span> auth ${fmtNum(a.auth)} <span class="muted">·</span> opslag ${fmtNum(a.storage)} <span class="muted">·</span> realtime ${fmtNum(a.realtime)}`);
+  }
+  if (s.message) html += `<div class="ln err">${esc(s.message)}</div>`;
+  html += `<div class="ln sub"># egress: zie <a href="${esc(s.dashboardUrl)}" target="_blank" rel="noopener">Supabase-dashboard</a></div>`;
+  return pane(cmd(verb, args), 'ok', worst, html);
+}
+
+function renderXai(x) {
+  const verb = 'Get-ApiCost', args = [['-Org', 'xAI']];
+  if (!x || x.status === 'unconfigured') return '';
+  if (x.status !== 'ok') return simple(verb, args, x, 'ConnectionError');
+  let html = '';
+  if (x.prepaidBalance != null) html += kv('Prepaid saldo', esc(typeof x.prepaidBalance === 'number' ? '$ ' + (x.prepaidBalance / 100).toFixed(2) : x.prepaidBalance));
+  if (x.spendingLimits) for (const [k, v] of Object.entries(x.spendingLimits)) html += kv(k, esc(v));
+  return pane(cmd(verb, args), 'ok', 0, html);
+}
+
+function renderLeads(l) {
+  const verb = 'Get-LeadStats', args = [['-Campaign', 'BuzzFlow']];
+  if (!l) return '';
+  if (l.status !== 'ok') return simple(verb, args, l, 'ItemNotFound');
+  const today = (n) => n ? ` <span class="sub">(+${n} vandaag)</span>` : '';
+  let html = '';
+  html += kv('Eerste mail verstuurd', `<span class="w">${fmtNum(l.eerste)}</span>${today(l.eersteVandaag)}`);
+  html += kv('Opvolgmail verstuurd', `<span class="w">${fmtNum(l.opvolg)}</span>${today(l.opvolgVandaag)}`);
+  if (l.mislukt) html += kv('Mislukt', `<span class="r">${fmtNum(l.mislukt)}</span>`);
+  html += gap();
+  const i = l.inbox;
+  const totaalIn = i.reactie + i.stop + i.bounce;
+  html += kv('Inbox binnen', `<span class="w">${fmtNum(totaalIn)}</span>${today(i.vandaag)}`);
+  html += kv('  reacties', `<span class="${i.reactie ? 'y' : 'w'}">${fmtNum(i.reactie)}</span>`);
+  html += kv('  afmeldingen', fmtNum(i.stop));
+  html += kv('  bounces', `<span class="${i.bounce ? 'o' : 'w'}">${fmtNum(i.bounce)}</span>`);
+  if (l.eerste) html += kv('Reactiepercentage', `${(i.reactie / l.eerste * 100).toFixed(1).replace('.', ',')}%`);
+  html += gap();
+  html += kv('Wacht op opvolgmail', fmtNum(l.wachtOpOpvolging));
+  if (l.wachtrijKlaar != null) html += kv('Mail klaar in wachtrij', fmtNum(l.wachtrijKlaar));
+  html += kv('Leads nog niet gemaild', fmtNum(l.nogTeBenaderen));
+  if (l.dagportie != null) html += kv('Dagportie', `${l.dagportie} <span class="sub">mails per ronde</span>`);
+  html += kv('Status', l.gepauzeerd ? '<span class="y">GEPAUZEERD</span> <span class="sub">(bestand PAUZE)</span>' : 'actief <span class="sub">(ma-vr 08:45)</span>');
+  if (l.rondeTijd) html += kv('Laatste ronde', esc(l.rondeTijd));
+
+  if (l.dagen && l.dagen.length) {
+    const max = Math.max(...l.dagen.map(d => d.eerste + d.opvolg), 1);
+    html += gap() + '<div class="ln dim">Verzonden per dag</div>';
+    for (const d of l.dagen) {
+      const w = (n) => Math.round(n / max * 20);
+      const lbl = new Date(d.dag + 'T12:00:00').toLocaleDateString('nl-NL', { weekday: 'short', day: '2-digit', month: '2-digit' });
+      html += `<div class="ln"><span class="sub">${esc(lbl).padEnd(10, ' ')}</span> <span>${'█'.repeat(w(d.eerste))}</span><span class="c">${'█'.repeat(w(d.opvolg))}</span> <span class="w">${d.eerste + d.opvolg}</span></div>`;
+    }
+    html += '<div class="ln sub">groen = eerste mail · blauw = opvolgmail</div>';
+  }
+
+  if (l.recent && l.recent.length) {
+    html += gap() + '<div class="ln dim">Laatst binnengekomen</div>';
+    for (const r of l.recent) {
+      const cls = r.soort === 'reactie' ? 'y' : r.soort === 'bounce' ? 'o' : 'sub';
+      const t = r.datum ? new Date(r.datum).toLocaleString('nl-NL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+      html += `<div class="ln"><span class="sub">${esc(t)}</span> <span class="${cls}">${esc(r.soort.padEnd(7, ' '))}</span> <span class="w">${esc(r.organisatie)}</span> <span class="sub">${esc(r.onderwerp || '')}</span></div>`;
+    }
+  }
+  const worst = l.eerste >= 20 && i.bounce / l.eerste > 0.05 ? 95 : 0;
+  return pane(cmd(verb, args), 'ok', worst, html);
+}
+
+// ---------- meeschalen: alles past altijd in het venster ----------
+// Probeert 1 t/m 4 kolommen en zoekt per keuze de grootste letter waarbij alles past.
+const MIN_FONT = 7, MAX_FONT = 22;
+function past() {
+  const d = document.documentElement;
+  if (d.scrollHeight > window.innerHeight + 1 || d.scrollWidth > window.innerWidth + 1) return false;
+  for (const p of $cards.children) if (p.scrollWidth > p.clientWidth + 1) return false;
+  return true;
+}
+function fit() {
+  const root = document.documentElement;
+  if (!$cards.children.length) return;
+  root.classList.remove('fits');
+  let best = null;
+  for (let cols = 1; cols <= 4; cols++) {
+    $cards.style.columnCount = cols;
+    let lo = MIN_FONT, hi = MAX_FONT;
+    root.style.fontSize = lo + 'px';
+    if (!past()) continue;
+    for (let i = 0; i < 9; i++) {
+      const mid = (lo + hi) / 2;
+      root.style.fontSize = mid + 'px';
+      if (past()) lo = mid; else hi = mid;
+    }
+    if (!best || lo > best.size) best = { cols, size: lo };
+  }
+  if (best) {
+    $cards.style.columnCount = best.cols;
+    root.style.fontSize = Math.floor(best.size * 10) / 10 + 'px';
+    root.classList.add('fits');
+  } else {
+    // Past zelfs op de kleinste letter niet (heel klein scherm): dan mag de pagina scrollen.
+    $cards.style.columnCount = 1;
+    root.style.fontSize = MIN_FONT + 'px';
+  }
+}
+let fitTimer = null;
+window.addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(fit, 120); });
+
+// ---------- loop ----------
+// Lokaal (127.0.0.1:3777) praat de pagina met zijn eigen server. Op github.io haalt hij de gegevens
+// bij de server op deze pc; sleutels en cookies komen zo nooit op internet.
+const LOCAL = location.hostname === '127.0.0.1' || location.hostname === 'localhost';
+const API = LOCAL ? '/api/status' : 'http://127.0.0.1:3777/api/status';
+async function load(force) {
+  try {
+    $meta.textContent = '[*] scannen...';
+    const r = await fetch(API + (force ? '?force=1' : ''), { cache: 'no-store', targetAddressSpace: 'loopback' });
+    const d = await r.json();
+    $cards.innerHTML = renderClaude(d.claude) + renderAnthropicApi(d.anthropicApi) + renderGrok(d.grok) + renderGrokBot(d.grokBot) + renderSupabase(d.supabase) + renderLeads(d.leads) + renderXai(d.xaiApi);
+    const srcs = [d.claude, d.anthropicApi, d.grok, d.grokBot, d.supabase, d.leads].filter(Boolean);
+    const ok = srcs.filter(x => x.status === 'ok').length;
+    $meta.innerHTML = `[+] laatste scan <span class="w">${new Date(d.fetchedAt).toLocaleTimeString('nl-NL')}</span> · auto-refresh ${d.refreshSeconds}s`;
+    $online.innerHTML = `bronnen online: <span class="${ok === srcs.length ? 'w' : 'y'}">${ok}/${srcs.length}</span>`;
+    fit();
+    clearTimeout(timer);
+    timer = setTimeout(() => load(false), (d.refreshSeconds || 60) * 1000);
+  } catch (e) {
+    $meta.innerHTML = LOCAL
+      ? `<span class="r">[!] server niet bereikbaar: ${esc(e.message)}</span>`
+      : `<span class="r">[!] geen verbinding met de server op deze pc.</span> <span class="sub">Start start.bat in D:\\Claude\\ai-usage-dashboard, en sta "toegang tot lokaal netwerk" toe als de browser dat vraagt.</span>`;
+    clearTimeout(timer);
+    timer = setTimeout(() => load(false), 30000);
+  }
+}
+setInterval(() => { for (const el of document.querySelectorAll('.cd')) el.textContent = countdown(el.dataset.t); }, 1000);
+document.getElementById('refresh').addEventListener('click', () => load(true));
+document.addEventListener('keydown', (e) => { if (e.key === 'F5' && !e.ctrlKey) { e.preventDefault(); load(true); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) load(false); });
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+load(false);
+</script>
+</body>
+</html>
