@@ -395,7 +395,10 @@ const API = LOCAL ? '/api/status' : 'http://127.0.0.1:3777/api/status';
 async function load(force) {
   try {
     $meta.textContent = '[*] scannen...';
-    const r = await fetch(API + (force ? '?force=1' : ''), { cache: 'no-store', targetAddressSpace: 'loopback' });
+    const ctl = new AbortController();
+    const wacht = setTimeout(() => ctl.abort(), LOCAL ? 60000 : 10000);
+    const r = await fetch(API + (force ? '?force=1' : ''), { cache: 'no-store', targetAddressSpace: 'loopback', signal: ctl.signal });
+    clearTimeout(wacht);
     const d = await r.json();
     $cards.innerHTML = renderClaude(d.claude) + renderAnthropicApi(d.anthropicApi) + renderGrok(d.grok) + renderGrokBot(d.grokBot) + renderSupabase(d.supabase) + renderLeads(d.leads) + renderXai(d.xaiApi);
     const srcs = [d.claude, d.anthropicApi, d.grok, d.grokBot, d.supabase, d.leads].filter(Boolean);
@@ -408,7 +411,7 @@ async function load(force) {
   } catch (e) {
     $meta.innerHTML = LOCAL
       ? `<span class="r">[!] server niet bereikbaar: ${esc(e.message)}</span>`
-      : `<span class="r">[!] geen verbinding met de server op deze pc.</span> <span class="sub">Start start.bat in D:\\Claude\\ai-usage-dashboard, en sta "toegang tot lokaal netwerk" toe als de browser dat vraagt.</span>`;
+      : `<span class="r">[!] geen verbinding met de server op deze pc.</span> <span class="sub">Draait start.bat? Klik dan links van de adresbalk op het icoon, zet "Lokale netwerktoegang" op Toestaan en druk op F5. Of open de</span> <a href="http://127.0.0.1:3777/">lokale versie</a><span class="sub">.</span>`;
     clearTimeout(timer);
     timer = setTimeout(() => load(false), 30000);
   }
